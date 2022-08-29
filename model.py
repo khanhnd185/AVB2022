@@ -2,6 +2,7 @@ import torch
 import math
 import torch.nn as nn
 from torch import Tensor
+import torchaudio
 
 class  Dense(nn.Module):
     def __init__(self, in_features, out_features, activation='none', bn=False, drop=0.0):
@@ -77,28 +78,123 @@ class PositionalEncoding(nn.Module):
 
 
 class AUTRANS(nn.Module):
-    def __init__(self, input_size=1600, num_output=10):
+    def __init__(self,
+                 input_size:int,
+                 num_outs:int,
+                 pretrained:bool = False,
+                 model_name:str = None):
         super(AUTRANS, self).__init__()
         self.input_size = input_size
         self.seq_len = 40
         self.front_dim = 2048
-        self.embed_dim = 64
+        self.embed_dim = 1024
         self.nhead = 8
-        self.ffdim = 128
+        self.ffdim = 2048
+        self.num_outs = num_outs
         
         self.front = nn.Sequential(
-            Dense(input_size, self.front_dim, activation='relu')
+            Dense(self.input_size, self.front_dim, activation='relu')
             , Dense(self.front_dim, self.embed_dim, activation='relu')
         )
 
         self.pos_encoder = PositionalEncoding(self.embed_dim)
-        self.encoder_layer1 = nn.TransformerEncoderLayer(self.seq_len, self.nhead, dim_feedforward=self.ffdim, batch_first=True)
-        self.encoder_layer2 = nn.TransformerEncoderLayer(self.seq_len // 2, self.nhead, dim_feedforward=self.ffdim, batch_first=True)
-        self.encoder_layer3 = nn.TransformerEncoderLayer(self.seq_len // 4, self.nhead, dim_feedforward=self.ffdim, batch_first=True)
-        self.encoder1 = nn.TransformerEncoder(self.encoder_layer1, num_layers=2)
+        self.encoder_layer1 = nn.TransformerEncoderLayer(self.embed_dim, self.nhead, dim_feedforward=self.ffdim, batch_first=True)
+        self.encoder_layer2 = nn.TransformerEncoderLayer(self.embed_dim, self.nhead, dim_feedforward=self.ffdim, batch_first=True)
+        self.encoder_layer3 = nn.TransformerEncoderLayer(self.embed_dim, self.nhead, dim_feedforward=self.ffdim, batch_first=True)
+        self.encoder1 = nn.TransformerEncoder(self.encoder_layer1, num_layers=6)
         self.encoder2 = nn.TransformerEncoder(self.encoder_layer2, num_layers=2)
         self.encoder3 = nn.TransformerEncoder(self.encoder_layer3, num_layers=2)
         self.avgpool1 = nn.AvgPool1d(2)
         self.avgpool2 = nn.AvgPool1d(2)
 
-        self.end = Dense(self.embed_dim, num_output)
+        self.end = Dense(self.embed_dim, self.num_outs)
+
+    def forward(self, x:torch.Tensor):
+        """
+        Args:
+            x ((torch.Tensor) - BS x S x 1 x T)
+        """
+
+        batch_size, seq_length, t = x.shape
+        x = x.view(batch_size*seq_length, 1, t)
+
+        audio_out = self.front(x)
+        audio_out = audio_out.view(batch_size, seq_length, -1)
+        audio_out = self.pos_encoder(audio_out)
+
+        output = self.encoder1(audio_out)
+        #output = torch.transpose(self.avgpool1(torch.transpose(output, 1, 2)), 1, 2)
+        #output = self.encoder2(output)
+        #output = torch.transpose(self.avgpool2(torch.transpose(output, 1, 2)), 1, 2)
+        #output = self.encoder3(output)
+        output = self.end(output)
+
+        return output
+
+
+class AvbWav2vec(nn.Module):
+    def __init__(self,
+                 num_outs:int,
+                 freeze_extractor:bool = True,
+                 layer:int = -1):
+        super(AvbWav2vec, self).__init__()
+        bundle = torchaudio.pipelines.WAV2VEC2_BASE
+        self.extractor = bundle.get_model()
+        self.layer = layer
+        self.linear = nn.Linear(768, num_outs)
+        self.num_outs = num_outs
+
+        self.bn = nn.BatchNorm1d(num_outs)
+        self.bn.weight.data.fill_(1)
+        self.bn.bias.data.zero_()
+        self.ac = nn.Sigmoid()
+
+        if freeze_extractor:
+            #for p in self.extractor.feature_extractor.parameters():
+            for p in self.extractor.parameters():
+                p.requires_grad = False
+
+    def forward(self, x, lengths):
+        features, lengths = self.extractor.extract_features(x, lengths, self.layer)
+        output = features[self.layer - 1].sum(dim=1)
+        output = torch.div(output, lengths.unsqueeze(1))
+        output = self.linear(output)
+        output = self.bn(output)
+        output = self.ac(output)
+
+        return output
+
+class AvbWav2vecLstm(nn.Module):
+    def __init__(self,
+                 num_outs:int,
+                 freeze_extractor:bool = True,
+                 layer:int = 12):
+        super(AvbWav2vecLstm, self).__init__()
+        bundle = torchaudio.pipelines.WAV2VEC2_BASE
+        self.extractor = bundle.get_model()
+        self.rnn = nn.LSTM(768, 512, num_layers=2, batch_first=True)
+        self.linear = nn.Linear(512, num_outs)
+        self.bn = nn.BatchNorm1d(num_outs)
+        self.ac = nn.Sigmoid()
+
+        self.layer = layer
+        self.num_outs = num_outs
+        self.bn.weight.data.fill_(1)
+        self.bn.bias.data.zero_()
+
+        if freeze_extractor:
+            #for p in self.extractor.feature_extractor.parameters():
+            for p in self.extractor.parameters():
+                p.requires_grad = False
+
+    def forward(self, x, lengths):
+        features, lengths = self.extractor.extract_features(x, lengths, self.layer)
+        y = features[self.layer - 1]
+        y, _ = self.rnn(y)
+        last_index = lengths.long() - 1
+        output = y[range(y.shape[0]), last_index, :]
+        output = self.linear(output)
+        output = self.bn(output)
+        output = self.ac(output)
+
+        return output
