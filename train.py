@@ -91,6 +91,7 @@ def main():
     parser.add_argument('--net', '-n', default='AvbWav2vecLstm', help='Net name')
     parser.add_argument('--input', '-i', default='', help='Input file')
     parser.add_argument('--task', '-t', default='two', help='Task')
+    parser.add_argument('--loss', '-L', default='ccc', help='Loss function')
     parser.add_argument('--batch', '-b', type=int, default=16, help='Batch size')
     parser.add_argument('--layer', '-l', type=int, default=12, help='Number of encoder layers')
     parser.add_argument('--epoch', '-e', type=int, default=20, help='Number of epoches')
@@ -102,6 +103,7 @@ def main():
 
     args = parser.parse_args()
     task = args.task
+    loss = args.loss
     epochs = args.epoch
     resume = args.input
     wav2vec_name = args.wav
@@ -140,7 +142,10 @@ def main():
         else:
             trainset = AVBWav(annotation_file, wav_path, 'Train')
             validset = AVBWav(annotation_file, wav_path, 'Val')
-        criteria = CCCLoss()
+        if loss == 'mse':
+            criteria = nn.MSELoss()
+        else:
+            criteria = CCCLoss()
         metric  = AvgCCC
 
         if task == 'high':
@@ -155,12 +160,12 @@ def main():
 
     start_epoch = 0
 
-    if net_name == 'AvbWav2vec':
-        net = AvbWav2vec(num_output, freeze_extractor=True, layer=num_layers)
-    elif net_name == 'AvbWav2vecFeatureLstm':
+    if net_name == 'AvbWav2vecFeatureLstm':
         net = AvbWav2vecFeatureLstm(num_output)
+    elif net_name == 'AvbWav2vec':
+        net = AvbWav2vec(bundle, feature, num_output, freeze_extractor=True, layer=num_layers, loss=loss)
     else:
-        net = AvbWav2vecLstm(bundle, feature, num_output, freeze_extractor=True, layer=num_layers)
+        net = AvbWav2vecLstm(bundle, feature, num_output, freeze_extractor=True, layer=num_layers, loss=loss)
     if resume != '':
         print("Resume form | {} ]".format(resume))
         net = load_state_dict(net, resume)

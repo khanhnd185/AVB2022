@@ -134,19 +134,24 @@ class AUTRANS(nn.Module):
 
 class AvbWav2vec(nn.Module):
     def __init__(self,
+                 bundle,
+                 feature:int,
                  num_outs:int,
                  freeze_extractor:bool = True,
+                 loss:str = 'ccc',
                  layer:int = -1):
         super(AvbWav2vec, self).__init__()
-        bundle = torchaudio.pipelines.WAV2VEC2_BASE
         self.extractor = bundle.get_model()
         self.layer = layer
-        self.linear = nn.Linear(768, num_outs)
+        self.linear = nn.Linear(feature, num_outs)
         self.num_outs = num_outs
 
-        self.bn = nn.BatchNorm1d(num_outs)
-        self.bn.weight.data.fill_(1)
-        self.bn.bias.data.zero_()
+        if loss == 'ccc':
+            self.bn = nn.BatchNorm1d(num_outs)
+            self.bn.weight.data.fill_(1)
+            self.bn.bias.data.zero_()
+        else:
+            self.bn = nn.Identity()
         self.ac = nn.Sigmoid()
 
         if freeze_extractor:
@@ -170,18 +175,23 @@ class AvbWav2vecLstm(nn.Module):
                  feature:int,
                  num_outs:int,
                  freeze_extractor:bool = True,
+                 loss:str = 'ccc',
                  layer:int = 12):
         super(AvbWav2vecLstm, self).__init__()
         self.extractor = bundle.get_model()
         self.rnn = nn.LSTM(feature, 512, num_layers=2, batch_first=True)
         self.linear = nn.Linear(512, num_outs)
-        self.bn = nn.BatchNorm1d(num_outs)
         self.ac = nn.Sigmoid()
 
         self.layer = layer
         self.num_outs = num_outs
-        self.bn.weight.data.fill_(1)
-        self.bn.bias.data.zero_()
+        
+        if loss == 'ccc':
+            self.bn = nn.BatchNorm1d(num_outs)
+            self.bn.weight.data.fill_(1)
+            self.bn.bias.data.zero_()
+        else:
+            self.bn = nn.Identity()
 
         if freeze_extractor:
             #for p in self.extractor.feature_extractor.parameters():
