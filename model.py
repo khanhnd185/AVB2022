@@ -181,10 +181,13 @@ class AvbWav2vecLstm(nn.Module):
         self.extractor = bundle.get_model()
         self.rnn = nn.LSTM(feature, 512, num_layers=2, batch_first=True)
         self.linear = nn.Linear(512, num_outs)
-        self.ac = nn.Sigmoid()
-
         self.layer = layer
         self.num_outs = num_outs
+        
+        if loss == 'ce':
+            self.ac = nn.Identity()
+        else:
+            self.ac = nn.Sigmoid()
         
         if loss == 'ccc':
             self.bn = nn.BatchNorm1d(num_outs)

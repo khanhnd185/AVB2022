@@ -63,6 +63,44 @@ class AVBWav(Dataset):
     def __len__(self):
         return len(self.X)
 
+class AVBWavType(Dataset):
+    def __init__(self, filename, wav_path, split='Train'):
+        super(AVBWavType, self).__init__()
+        with open(filename) as f:
+            mtl_lines = f.read().splitlines()
+        X, Y = [], []
+
+        for line in mtl_lines[1:]:
+            splitted_line = line.split(',')
+            if split != splitted_line[1]:
+                continue
+
+            name = splitted_line[0]
+            audioname = name[1:-1] + '.wav'
+            y = {
+                "Gasp": [1, 0, 0, 0, 0, 0, 0, 0],
+                "Laugh": [0, 1, 0, 0, 0, 0, 0, 0],
+                "Cry": [0, 0, 1, 0, 0, 0, 0, 0],
+                "Scream": [0, 0, 0, 1, 0, 0, 0, 0],
+                "Grunt": [0, 0, 0, 0, 1, 0, 0, 0],
+                "Groan": [0, 0, 0, 0, 0, 1, 0, 0],
+                "Pant": [0, 0, 0, 0, 0, 0, 1, 0],
+                "Other": [0, 0, 0, 0, 0, 0, 0, 1]
+            }[splitted_line[2]]
+
+            X.append(os.path.join(wav_path, audioname))
+            Y.append(y)
+
+        self.X = np.array(X)
+        self.Y = np.array(Y)
+    
+    def __getitem__(self, i):
+        waveform, _ = torchaudio.load(self.X[i])
+        return waveform[0], self.Y[i]
+
+    def __len__(self):
+        return len(self.X)
+
 class AVBH5py(Dataset):
     def __init__(self, filename, wav_path, split='Train'):
         super(AVBH5py, self).__init__()

@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from math import cos, pi
 from sklearn.metrics import f1_score
 from torch.nn.utils.rnn import pad_sequence
+from sklearn.metrics import recall_score
 
 EPS = 1e-8
 
@@ -83,3 +84,13 @@ def pad_collate(batch):
     
     return padded_data, labels, num_seqs_per_sample
 
+
+def UAR(labels, predictions):
+    predictions = np.argmax(predictions, axis = 1)
+    labels = np.argmax(labels, axis = 1)
+    
+    predictions = predictions.astype(np.int32).reshape(-1,).tolist()
+    labels = labels.astype(np.int32).reshape(-1,).tolist()
+    
+    return recall_score(labels, predictions, average="macro")
+    

@@ -1,7 +1,7 @@
 import os
 import pickle
 import pandas as pd
-from dataset import AVBFeature, AVBWav, AVBH5py
+from dataset import AVBFeature, AVBWav, AVBH5py, AVBWavType
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import argparse
@@ -128,13 +128,16 @@ def main():
         feature = 768
 
     annotation_file = os.path.join(data_dir, 'labels', task + '_info.csv')
-    # with open(os.path.join(data_dir, 'audio', feature), 'rb') as handle:
-    #     filename2feature = pickle.load(handle)
     wav_path = os.path.join(data_dir, 'audio', 'wav')
     h5p_path = '../competitions/A-VB2022/end-to-end_based/' + task + '/data_wav2vec'
 
     if task == 'type':
-        metric  = AvgCCC
+        metric  = UAR
+        criteria = nn.CrossEntropyLoss()
+        loss = 'ce'
+        num_output = 8
+        trainset = AVBWavType(annotation_file, wav_path, 'Train')
+        validset = AVBWavType(annotation_file, wav_path, 'Val')
     else:
         if net_name == 'AvbWav2vecFeatureLstm':
             trainset = AVBH5py(annotation_file, h5p_path, 'Train')
