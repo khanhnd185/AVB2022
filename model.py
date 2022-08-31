@@ -166,13 +166,14 @@ class AvbWav2vec(nn.Module):
 
 class AvbWav2vecLstm(nn.Module):
     def __init__(self,
+                 bundle,
+                 feature:int,
                  num_outs:int,
                  freeze_extractor:bool = True,
                  layer:int = 12):
         super(AvbWav2vecLstm, self).__init__()
-        bundle = torchaudio.pipelines.WAV2VEC2_BASE
         self.extractor = bundle.get_model()
-        self.rnn = nn.LSTM(768, 512, num_layers=2, batch_first=True)
+        self.rnn = nn.LSTM(feature, 512, num_layers=2, batch_first=True)
         self.linear = nn.Linear(512, num_outs)
         self.bn = nn.BatchNorm1d(num_outs)
         self.ac = nn.Sigmoid()
@@ -189,12 +190,37 @@ class AvbWav2vecLstm(nn.Module):
 
     def forward(self, x, lengths):
         features, lengths = self.extractor.extract_features(x, lengths, self.layer)
-        y = features[self.layer - 1]
-        y, _ = self.rnn(y)
+        output = features[self.layer - 1]
+        self.rnn.flatten_parameters()
+        output, _ = self.rnn(output)
         last_index = lengths.long() - 1
-        output = y[range(y.shape[0]), last_index, :]
         output = self.linear(output)
-        output = self.bn(output)
-        output = self.ac(output)
+        output = self.bn(torch.transpose(output, 1, 2))
+        output = self.ac(torch.transpose(output, 1, 2))
+        output = output[range(output.shape[0]), last_index, :]
+
+        return output
+
+class AvbWav2vecFeatureLstm(nn.Module):
+    def __init__(self,
+                 num_outs:int):
+        super(AvbWav2vecFeatureLstm, self).__init__()
+        self.rnn = nn.LSTM(768, 512, num_layers=2, batch_first=True)
+        self.linear = nn.Linear(512, num_outs)
+        self.bn = nn.BatchNorm1d(num_outs)
+        self.ac = nn.Sigmoid()
+
+        self.num_outs = num_outs
+        self.bn.weight.data.fill_(1)
+        self.bn.bias.data.zero_()
+
+    def forward(self, x, lengths):
+        self.rnn.flatten_parameters()
+        output, _ = self.rnn(x)
+        last_index = lengths.long() - 1
+        output = self.linear(output)
+        output = self.bn(torch.transpose(output, 1, 2))
+        output = self.ac(torch.transpose(output, 1, 2))
+        output = output[range(output.shape[0]), last_index, :]
 
         return output

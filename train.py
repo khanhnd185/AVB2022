@@ -1,13 +1,14 @@
 import os
 import pickle
 import pandas as pd
-from dataset import AVBFeature, AVBWav
+from dataset import AVBFeature, AVBWav, AVBH5py
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import argparse
 from sam import SAM
 from helpers import *
-from model import AvbWav2vecLstm, AvbWav2vec
+from model import AvbWav2vecLstm, AvbWav2vec, AvbWav2vecFeatureLstm
+import torchaudio
 
 def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task):
     total_losses = AverageMeter()
@@ -15,7 +16,7 @@ def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task
     train_loader_len = len(trainldr)
 
     for batch_idx, (x, y, leng) in enumerate(tqdm(trainldr)):
-        adjust_learning_rate(optimizer, epoch, epochs, learning_rate, batch_idx, train_loader_len)
+        #adjust_learning_rate(optimizer, epoch, epochs, learning_rate, batch_idx, train_loader_len)
         x = x.float()
         y = y.float()
         x = x.cuda()
@@ -81,7 +82,7 @@ def val(net, validldr, criteria, metric, task):
                 all_yhat = torch.cat((all_yhat, yhat), 0)
     all_y = all_y.cpu().numpy()
     all_yhat = all_yhat.cpu().numpy()
-    metrics, _ = metric(all_y, all_yhat)
+    metrics = metric(all_y, all_yhat)
     return total_losses.avg(), metrics
 
 def main():
@@ -90,37 +91,57 @@ def main():
     parser.add_argument('--net', '-n', default='AvbWav2vecLstm', help='Net name')
     parser.add_argument('--input', '-i', default='', help='Input file')
     parser.add_argument('--task', '-t', default='two', help='Task')
-    parser.add_argument('--batch', '-b', type=int, default=256, help='Batch size')
-    parser.add_argument('--epoch', '-e', type=int, default=100, help='Number of epoches')
-    parser.add_argument('--lr', '-a', type=float, default=1e-3, help='Learning rate')
+    parser.add_argument('--batch', '-b', type=int, default=16, help='Batch size')
+    parser.add_argument('--layer', '-l', type=int, default=12, help='Number of encoder layers')
+    parser.add_argument('--epoch', '-e', type=int, default=20, help='Number of epoches')
+    parser.add_argument('--lr', '-a', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--datadir', '-d', default='../../../Data/A-VB/', help='Data folder path')
-    parser.add_argument('--feature', '-f', default='avb_magnitude1Hz.pickle', help='Train image feature')
+    parser.add_argument('--outdir', '-o', default='train', help='output folder path')
+    parser.add_argument('--wav', '-w', default='WAV2VEC2_BASE', help='Wav2vec version')
     parser.add_argument('--sam', '-s', action='store_true', help='Apply SAM optimizer')
 
     args = parser.parse_args()
     task = args.task
     epochs = args.epoch
     resume = args.input
-    feature = args.feature
+    wav2vec_name = args.wav
     net_name = args.net
     data_dir = args.datadir
+    output_dir = args.outdir
     batch_size = args.batch
     learning_rate = args.lr
+    num_layers = args.layer
+
+    if wav2vec_name == 'WAV2VEC2_XLSR53':
+        bundle = torchaudio.pipelines.WAV2VEC2_XLSR53
+        feature = 1024
+    elif wav2vec_name == 'WAV2VEC2_LARGE':
+        bundle = torchaudio.pipelines.WAV2VEC2_LARGE
+        feature = 1024
+    elif wav2vec_name == 'WAV2VEC2_LARGE_LV60K':
+        bundle = torchaudio.pipelines.WAV2VEC2_LARGE_LV60K
+        feature = 1024
+    else:
+        bundle = torchaudio.pipelines.WAV2VEC2_BASE
+        feature = 768
 
     annotation_file = os.path.join(data_dir, 'labels', task + '_info.csv')
     # with open(os.path.join(data_dir, 'audio', feature), 'rb') as handle:
     #     filename2feature = pickle.load(handle)
     wav_path = os.path.join(data_dir, 'audio', 'wav')
+    h5p_path = '../competitions/A-VB2022/end-to-end_based/' + task + '/data_wav2vec'
 
     if task == 'type':
-        output_dir = 'classification_' + net_name + '_task' + task
-        metric  = VA_metric
+        metric  = AvgCCC
     else:
-        output_dir = 'regression_' + net_name + '_task' + task
-        trainset = AVBWav(annotation_file, wav_path, 'Train')
-        validset = AVBWav(annotation_file, wav_path, 'Val')
-        criteria = RegressionLoss()
-        metric  = VA_metric
+        if net_name == 'AvbWav2vecFeatureLstm':
+            trainset = AVBH5py(annotation_file, h5p_path, 'Train')
+            validset = AVBH5py(annotation_file, h5p_path, 'Val')
+        else:
+            trainset = AVBWav(annotation_file, wav_path, 'Train')
+            validset = AVBWav(annotation_file, wav_path, 'Val')
+        criteria = CCCLoss()
+        metric  = AvgCCC
 
         if task == 'high':
             num_output = 10
@@ -129,15 +150,17 @@ def main():
         elif task == 'culture':
             num_output = 40
 
-    trainldr = DataLoader(trainset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=pad_collate)
+    trainldr = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=0, collate_fn=pad_collate)
     validldr = DataLoader(validset, batch_size=batch_size, shuffle=False, num_workers=0, collate_fn=pad_collate)
 
     start_epoch = 0
 
     if net_name == 'AvbWav2vec':
-        net = AvbWav2vec(num_output, freeze_extractor=True, layer=12)
+        net = AvbWav2vec(num_output, freeze_extractor=True, layer=num_layers)
+    elif net_name == 'AvbWav2vecFeatureLstm':
+        net = AvbWav2vecFeatureLstm(num_output)
     else:
-        net = AvbWav2vecLstm(num_output, freeze_extractor=True, layer=12)
+        net = AvbWav2vecLstm(bundle, feature, num_output, freeze_extractor=True, layer=num_layers)
     if resume != '':
         print("Resume form | {} ]".format(resume))
         net = load_state_dict(net, resume)
