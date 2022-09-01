@@ -3,6 +3,7 @@ import math
 import torch.nn as nn
 from torch import Tensor
 import torchaudio
+from pool import PoolingWrapper
 
 class  Dense(nn.Module):
     def __init__(self, in_features, out_features, activation='none', bn=False, drop=0.0):
@@ -235,5 +236,52 @@ class AvbWav2vecFeatureLstm(nn.Module):
         output = self.bn(torch.transpose(output, 1, 2))
         output = self.ac(torch.transpose(output, 1, 2))
         output = output[range(output.shape[0]), last_index, :]
+
+        return output
+
+class AvbWav2vecLstmPool(nn.Module):
+    def __init__(self,
+                 bundle,
+                 feature:int,
+                 num_outs:int,
+                 freeze_extractor:bool = True,
+                 loss:str = 'ccc',
+                 pool:str = 'last',
+                 layer:int = 12):
+        super(AvbWav2vecLstm, self).__init__()
+        self.extractor = bundle.get_model()
+        self.rnn = nn.LSTM(feature, 512, num_layers=2, batch_first=True)
+        self.linear = nn.Linear(512, num_outs)
+        self.layer = layer
+        self.num_outs = num_outs
+        
+        if loss == 'ce':
+            self.ac = nn.Identity()
+        else:
+            self.ac = nn.Sigmoid()
+        
+        if loss == 'ccc':
+            self.bn = nn.BatchNorm1d(num_outs)
+            self.bn.weight.data.fill_(1)
+            self.bn.bias.data.zero_()
+        else:
+            self.bn = nn.Identity()
+        
+        self.pool = PoolingWrapper(pool)
+
+        if freeze_extractor:
+            #for p in self.extractor.feature_extractor.parameters():
+            for p in self.extractor.parameters():
+                p.requires_grad = False
+
+    def forward(self, x, lengths):
+        features, lengths = self.extractor.extract_features(x, lengths, self.layer)
+        output = features[self.layer - 1]
+        self.rnn.flatten_parameters()
+        output, _ = self.rnn(output)
+        output = self.pool(output, lengths)
+        output = self.linear(output)
+        output = self.bn(output)
+        output = self.ac(output)
 
         return output

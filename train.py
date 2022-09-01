@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import argparse
 from sam import SAM
 from helpers import *
-from model import AvbWav2vecLstm, AvbWav2vec, AvbWav2vecFeatureLstm
+from model import *
 import torchaudio
 
 def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task):
@@ -90,6 +90,7 @@ def main():
 
     parser.add_argument('--net', '-n', default='AvbWav2vecLstm', help='Net name')
     parser.add_argument('--input', '-i', default='', help='Input file')
+    parser.add_argument('--pool', '-p', default='last', help='Pool type')
     parser.add_argument('--task', '-t', default='two', help='Task')
     parser.add_argument('--loss', '-L', default='ccc', help='Loss function')
     parser.add_argument('--batch', '-b', type=int, default=16, help='Batch size')
@@ -104,6 +105,7 @@ def main():
     args = parser.parse_args()
     task = args.task
     loss = args.loss
+    pool = args.pool
     epochs = args.epoch
     resume = args.input
     wav2vec_name = args.wav
@@ -167,6 +169,8 @@ def main():
         net = AvbWav2vecFeatureLstm(num_output)
     elif net_name == 'AvbWav2vec':
         net = AvbWav2vec(bundle, feature, num_output, freeze_extractor=True, layer=num_layers, loss=loss)
+    elif net_name == 'AvbWav2vecLstmPool':
+        net = AvbWav2vecLstmPool(bundle, feature, num_output, freeze_extractor=True, layer=num_layers, loss=loss, pool=pool)
     else:
         net = AvbWav2vecLstm(bundle, feature, num_output, freeze_extractor=True, layer=num_layers, loss=loss)
     if resume != '':
