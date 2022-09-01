@@ -149,6 +149,8 @@ def main():
             validset = AVBWav(annotation_file, wav_path, 'Val')
         if loss == 'mse':
             criteria = nn.MSELoss()
+        elif loss == 'bce':
+            criteria = nn.BCELoss()
         else:
             criteria = CCCLoss()
         metric  = AvgCCC
