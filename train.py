@@ -10,13 +10,13 @@ from helpers import *
 from model import *
 import torchaudio
 
-def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task):
+def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria):
     total_losses = AverageMeter()
     net.train()
     train_loader_len = len(trainldr)
 
     for batch_idx, (x, y, leng) in enumerate(tqdm(trainldr)):
-        #adjust_learning_rate(optimizer, epoch, epochs, learning_rate, batch_idx, train_loader_len)
+        adjust_learning_rate(optimizer, epoch, epochs, learning_rate, batch_idx, train_loader_len)
         x = x.float()
         y = y.float()
         x = x.cuda()
@@ -30,7 +30,7 @@ def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task
 
     return total_losses.avg()
 
-def train_sam(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task):
+def train_sam(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria):
     total_losses = AverageMeter()
     net.train()
     train_loader_len = len(trainldr)
@@ -57,7 +57,7 @@ def train_sam(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, 
         total_losses.update(loss.data.item(), x.size(0))
     return total_losses.avg()
 
-def val(net, validldr, criteria, metric, task):
+def val(net, validldr, criteria, metric):
     total_losses = AverageMeter()
     yhat = {}
     net.eval()
@@ -199,8 +199,8 @@ def main():
 
     for epoch in range(start_epoch, epochs):
         lr = optimizer.param_groups[0]['lr']
-        train_loss = train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria, task)
-        val_loss, val_metrics = val(net, validldr, criteria, metric, task)
+        train_loss = train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria)
+        val_loss, val_metrics = val(net, validldr, criteria, metric)
 
         infostr = {'Task {}: {},{:.5f},{:.5f},{:.5f},{:.5f}'
                 .format(task,
