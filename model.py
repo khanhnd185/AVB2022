@@ -279,9 +279,9 @@ class AvbWav2vecLstmPool(nn.Module):
         output = features[self.layer - 1]
         self.rnn.flatten_parameters()
         output, _ = self.rnn(output)
-        output = self.pool(output, lengths)
         output = self.linear(output)
-        output = self.bn(output)
-        output = self.ac(output)
+        output = self.bn(torch.transpose(output, 1, 2))
+        output = self.ac(torch.transpose(output, 1, 2))
+        output = self.pool(output, lengths)
 
         return output
