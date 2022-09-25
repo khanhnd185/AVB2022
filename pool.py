@@ -40,7 +40,7 @@ class AvgPooling(nn.Module):
         super(AvgPooling, self).__init__()
 
     def forward(self, x, leng):
-        ret, _ =  torch.mean(x, dim=1)
+        ret =  torch.mean(x, dim=1)
         return ret
 
 class PoolingWrapper(nn.Module):
@@ -54,5 +54,5 @@ class PoolingWrapper(nn.Module):
             "maskavg": MaskAvgPooling(),
         }[name]
 
-    def forward(self, x):
-        return self.pool(x)
+    def forward(self, x, leng):
+        return self.pool(x, leng)

@@ -248,7 +248,7 @@ class AvbWav2vecLstmPool(nn.Module):
                  loss:str = 'ccc',
                  pool:str = 'last',
                  layer:int = 12):
-        super(AvbWav2vecLstm, self).__init__()
+        super(AvbWav2vecLstmPool, self).__init__()
         self.extractor = bundle.get_model()
         self.rnn = nn.LSTM(feature, 512, num_layers=2, batch_first=True)
         self.linear = nn.Linear(512, num_outs)
