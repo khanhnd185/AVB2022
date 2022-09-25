@@ -15,7 +15,7 @@ def train(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria):
     net.train()
     train_loader_len = len(trainldr)
 
-    for batch_idx, (x, y, leng) in enumerate(tqdm(trainldr)):
+    for batch_idx, (x, y, leng, _) in enumerate(tqdm(trainldr)):
         adjust_learning_rate(optimizer, epoch, epochs, learning_rate, batch_idx, train_loader_len)
         x = x.float()
         y = y.float()
@@ -35,7 +35,7 @@ def train_sam(net, trainldr, optimizer, epoch, epochs, learning_rate, criteria):
     net.train()
     train_loader_len = len(trainldr)
 
-    for batch_idx, (x, y, leng) in enumerate(tqdm(trainldr)):
+    for batch_idx, (x, y, leng, _) in enumerate(tqdm(trainldr)):
         mask = torch.ones(x.shape[0])
         mask = mask.float()
         mask = mask.cuda()
@@ -64,7 +64,7 @@ def val(net, validldr, criteria, metric):
     all_y = None
     all_yhat = None
 
-    for batch_idx, (x, y, leng) in enumerate(tqdm(validldr)):
+    for batch_idx, (x, y, leng, _) in enumerate(tqdm(validldr)):
         with torch.no_grad():
             x = x.float()
             y = y.float()

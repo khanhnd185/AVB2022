@@ -77,12 +77,12 @@ class CCCLoss(nn.Module):
         return torch.sum(loss)
 
 def pad_collate(batch):
-    data, labels = zip(*batch)
+    data, labels, names = zip(*batch)
     labels = torch.Tensor(np.array(labels))
     padded_data = pad_sequence(data, batch_first=True)
     num_seqs_per_sample = torch.Tensor([len(x) for x in data])
     
-    return padded_data, labels, num_seqs_per_sample
+    return padded_data, labels, num_seqs_per_sample, names
 
 
 def UAR(labels, predictions):

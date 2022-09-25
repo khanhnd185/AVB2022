@@ -40,6 +40,7 @@ class AVBWav(Dataset):
         with open(filename) as f:
             mtl_lines = f.read().splitlines()
         X, Y = [], []
+        self.name = []
 
         for line in mtl_lines[1:]:
             splitted_line = line.split(',')
@@ -48,17 +49,21 @@ class AVBWav(Dataset):
 
             name = splitted_line[0]
             audioname = name[1:-1] + '.wav'
-            y = list(map(float, splitted_line[2:]))
+            if split == 'Test':
+                y = [0]
+            else:
+                y = list(map(float, splitted_line[2:]))
 
             X.append(os.path.join(wav_path, audioname))
             Y.append(y)
+            self.name.append(name)
 
         self.X = np.array(X)
         self.Y = np.array(Y)
     
     def __getitem__(self, i):
         waveform, _ = torchaudio.load(self.X[i])
-        return waveform[0], self.Y[i]
+        return waveform[0], self.Y[i], self.name[i]
 
     def __len__(self):
         return len(self.X)
@@ -69,6 +74,7 @@ class AVBWavType(Dataset):
         with open(filename) as f:
             mtl_lines = f.read().splitlines()
         X, Y = [], []
+        self.name = []
 
         for line in mtl_lines[1:]:
             splitted_line = line.split(',')
@@ -77,26 +83,30 @@ class AVBWavType(Dataset):
 
             name = splitted_line[0]
             audioname = name[1:-1] + '.wav'
-            y = {
-                "Gasp": [1, 0, 0, 0, 0, 0, 0, 0],
-                "Laugh": [0, 1, 0, 0, 0, 0, 0, 0],
-                "Cry": [0, 0, 1, 0, 0, 0, 0, 0],
-                "Scream": [0, 0, 0, 1, 0, 0, 0, 0],
-                "Grunt": [0, 0, 0, 0, 1, 0, 0, 0],
-                "Groan": [0, 0, 0, 0, 0, 1, 0, 0],
-                "Pant": [0, 0, 0, 0, 0, 0, 1, 0],
-                "Other": [0, 0, 0, 0, 0, 0, 0, 1]
-            }[splitted_line[2]]
+            if split == 'Test':
+                y = [0, 0, 0, 0, 0, 0, 0, 0]
+            else:
+                y = {
+                    "Gasp": [1, 0, 0, 0, 0, 0, 0, 0],
+                    "Laugh": [0, 1, 0, 0, 0, 0, 0, 0],
+                    "Cry": [0, 0, 1, 0, 0, 0, 0, 0],
+                    "Scream": [0, 0, 0, 1, 0, 0, 0, 0],
+                    "Grunt": [0, 0, 0, 0, 1, 0, 0, 0],
+                    "Groan": [0, 0, 0, 0, 0, 1, 0, 0],
+                    "Pant": [0, 0, 0, 0, 0, 0, 1, 0],
+                    "Other": [0, 0, 0, 0, 0, 0, 0, 1]
+                }[splitted_line[2]]
 
             X.append(os.path.join(wav_path, audioname))
             Y.append(y)
+            self.name.append(name)
 
         self.X = np.array(X)
         self.Y = np.array(Y)
     
     def __getitem__(self, i):
         waveform, _ = torchaudio.load(self.X[i])
-        return waveform[0], self.Y[i]
+        return waveform[0], self.Y[i], self.name[i]
 
     def __len__(self):
         return len(self.X)
