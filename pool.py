@@ -31,7 +31,7 @@ class MaskAvgPooling(nn.Module):
         super(MaskAvgPooling, self).__init__()
 
     def forward(self, x, leng):
-        ret, _ =  torch.sum(x, dim=1)
+        ret =  torch.sum(x, dim=1)
         ret = torch.div(ret, leng.unsqueeze(1))
         return ret
 
