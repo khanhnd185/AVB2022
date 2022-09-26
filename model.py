@@ -163,10 +163,11 @@ class AvbWav2vec(nn.Module):
     def forward(self, x, lengths):
         features, lengths = self.extractor.extract_features(x, lengths, self.layer)
         output = features[self.layer - 1].sum(dim=1)
-        output = torch.div(output, lengths.unsqueeze(1))
+        last_index = lengths.long() - 1
         output = self.linear(output)
-        output = self.bn(output)
-        output = self.ac(output)
+        output = self.bn(torch.transpose(output, 1, 2))
+        output = self.ac(torch.transpose(output, 1, 2))
+        output = output[range(output.shape[0]), last_index, :]
 
         return output
 
