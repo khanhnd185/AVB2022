@@ -5,7 +5,6 @@ from dataset import AVBFeature, AVBWav, AVBH5py, AVBWavType
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import argparse
-from sam import SAM
 from helpers import *
 from model import *
 import torchaudio
