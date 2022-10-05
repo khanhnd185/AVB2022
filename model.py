@@ -147,13 +147,17 @@ class AvbWav2vec(nn.Module):
         self.linear = nn.Linear(feature, num_outs)
         self.num_outs = num_outs
 
+        if loss == 'ce':
+            self.ac = nn.Identity()
+        else:
+            self.ac = nn.Sigmoid()
+
         if loss == 'ccc':
             self.bn = nn.BatchNorm1d(num_outs)
             self.bn.weight.data.fill_(1)
             self.bn.bias.data.zero_()
         else:
             self.bn = nn.Identity()
-        self.ac = nn.Sigmoid()
 
         if freeze_extractor:
             #for p in self.extractor.feature_extractor.parameters():
@@ -162,7 +166,7 @@ class AvbWav2vec(nn.Module):
 
     def forward(self, x, lengths):
         features, lengths = self.extractor.extract_features(x, lengths, self.layer)
-        output = features[self.layer - 1].sum(dim=1)
+        output = features[self.layer - 1]
         last_index = lengths.long() - 1
         output = self.linear(output)
         output = self.bn(torch.transpose(output, 1, 2))
